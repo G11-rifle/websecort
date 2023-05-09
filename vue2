@@ -1,0 +1,64 @@
+export default {
+	data() {
+		return {
+			stompClient: '',
+      		timer: '',
+      		socket: null,
+      		userId: '',
+		}
+	},
+	mounted(){
+		this.init();
+	},
+	beforeDestroy: function() {
+		// 页面离开时断开连接,清除定时器
+    	this.disconnect()
+    	clearInterval(this.timer)
+	},
+	methods: {
+		init() {
+	      this.connection()
+	      let _this = this
+	      // 断开重连机制
+	      this.timer = setInterval(() => {
+	        try {
+	          _this.stompClient.send('test')
+	        } catch (e) {
+	          console.log('连接中断:' + e)
+	          _this.connection()
+	        }
+	      }, 10000)
+	    },
+	    connection() {
+	      this.socket = new SockJS(config.webSocketUrl + '/web-socket/ws') //协议字段
+	      this.stompClient = Stomp.over(this.socket)
+	      let __this = this
+	
+	      // 向服务器发起websocket连接
+	      let token = userUtils.getToken()
+	      this.stompClient.connect(
+	        {
+	          userId: this.userId, // 携带客户端信息
+	          token: token
+	        },
+	        function connectCallback() {
+	          __this.stompClient.subscribe(
+	            '/user/exchange/stompUser/stompUserNotice', //订阅地址
+	            (response) => {
+	              console.log('连接成功', response) //接收response数据
+	            }
+	          )
+	        },
+	        function errorCallBack(error) {
+	          console.log('连接失败:' + error)
+	        }
+	      )
+	    },
+	    disconnect() {
+	      clearInterval(this.timer)
+	      if (this.stompClient) {
+	        this.stompClient.disconnect()
+	      }
+	    },
+	}
+}
