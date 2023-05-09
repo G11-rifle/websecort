@@ -1,64 +1,94 @@
+<template>
+  <div> 
+    <button @click="createSocket">创建socket</button>
+    <div v-if="createSocketIO ? true:false ">
+      <button @click="socketOpen">连接Socket</button>
+      <button @click="closeSocket">断开链接</button>
+      <button @click="submsgContent(true)">订阅事件</button>
+      <button @click="submsgContent(false)">取消订阅事件</button>
+      <button @click="socketSendmsg">发送数据</button>
+      <button @click="lockResult">查看链接参数</button>
+    </div>
+  </div>
+</template>
+<script> 
+import VueSocketIO from 'vue-socket.io'
 export default {
-	data() {
-		return {
-			stompClient: '',
-      		timer: '',
-      		socket: null,
-      		userId: '',
-		}
-	},
-	mounted(){
-		this.init();
-	},
-	beforeDestroy: function() {
-		// 页面离开时断开连接,清除定时器
-    	this.disconnect()
-    	clearInterval(this.timer)
-	},
-	methods: {
-		init() {
-	      this.connection()
-	      let _this = this
-	      // 断开重连机制
-	      this.timer = setInterval(() => {
-	        try {
-	          _this.stompClient.send('test')
-	        } catch (e) {
-	          console.log('连接中断:' + e)
-	          _this.connection()
-	        }
-	      }, 10000)
-	    },
-	    connection() {
-	      this.socket = new SockJS(config.webSocketUrl + '/web-socket/ws') //协议字段
-	      this.stompClient = Stomp.over(this.socket)
-	      let __this = this
-	
-	      // 向服务器发起websocket连接
-	      let token = userUtils.getToken()
-	      this.stompClient.connect(
-	        {
-	          userId: this.userId, // 携带客户端信息
-	          token: token
-	        },
-	        function connectCallback() {
-	          __this.stompClient.subscribe(
-	            '/user/exchange/stompUser/stompUserNotice', //订阅地址
-	            (response) => {
-	              console.log('连接成功', response) //接收response数据
-	            }
-	          )
-	        },
-	        function errorCallBack(error) {
-	          console.log('连接失败:' + error)
-	        }
-	      )
-	    },
-	    disconnect() {
-	      clearInterval(this.timer)
-	      if (this.stompClient) {
-	        this.stompClient.disconnect()
-	      }
-	    },
-	}
+  data() {
+    return {
+      createSocketIO: null,
+      createSocketEmitter: null
+    }
+  },
+  beforeDestroy() { //订阅事件记得要取消
+    if (this.createSocketIO) {
+      this.createSocketEmitter.removeListener('msgContent', this)
+      this.createSocketIO.close()
+    }
+  },
+  methods: {
+   async createSocket() {//也可在页面初始话调用  
+      let socketUrl
+      /* // 动态ip与token实现，ip+端口可通过接口拿取，token及用户信息可通过vuex拿取
+            const userId = store.getters.userInfo.userId
+            const ipResult = await getHostIp()
+            if (ipResult.code !== 0) return
+            const { ip, port } = ipResult.data
+            const protocol = window.location.protocol
+            const socketUrl = `${protocol}//${ip}:${port}?userId=${userId}`
+            console.log('socketUrl', socketUrl)
+       */   
+      socketUrl = 'http://127.0.0.1:9527'
+      const createSocketItem = new VueSocketIO({
+        debug: true,
+        options: {
+          autoConnect: false,//默认关闭，创建后打开，组件内使用可直接打开，就不需要用io.open()
+          transports: ['websocket'], 
+          query: {  
+              token: 77777777777 //携带的额外参数也可通过url拼接实现
+          }
+        },
+        connection:socketUrl 
+      })
+      const { io, emitter } = createSocketItem
+      io.query.ttt = 8888888888
+      this.createSocketIO = io
+      this.createSocketEmitter = emitter
+      io.open()
+      io.on('connecting', () => { console.log('正在连接---888') })
+      io.on('connect', () => { console.log('连接成功---888') })
+      io.on('disconnect', () => { console.log('断开连接---888') })
+      io.on('connect_failed', () => { console.log('连接失败---888') })
+      io.on('error', () => { console.log('错误发生，并且无法被其他事件类型所处理') })
+      io.on('reconnect_attempt', () => {console.log('触发尝试重新连接', 888)})
+      io.on('reconnecting', () => { console.log('正在重连---888') })
+      io.on('reconnect_failed', () => { console.log('重连失败---888') })
+      io.on('reconnect', () => { console.log('重连成功---888') })
+      emitter.addListener('welcome', (data) => {
+        console.log('data', data)
+      }, this) 
+    },
+    socketOpen() {
+      this.createSocketIO.open()
+    },
+    socketSendmsg() { // 发送消息
+      this.createSocketIO.emit('hello', '这里是客户端')
+    },
+    lockResult() {
+      console.log('链接状态', this.createSocketIO.connected)
+    },
+    closeSocket() {
+      this.createSocketIO.close()
+    },
+    submsgContent(flag) {
+      if (flag) {
+        this.createSocketEmitter.addListener('welcome', (data) => {
+          console.log('data', data)
+        }, this)
+      } else {
+        this.createSocketEmitter.removeListener('welcome', this)
+      } 
+    }
+  }
 }
+</script> 
